@@ -52,3 +52,10 @@ class ExpenseRepository:
         self.db.refresh(expense)
     
         return expense
+    
+    def delete_expense(
+            self,
+            expense: Expense,
+    ) -> None:
+        self.db.delete(expense)
+        self.db.commit()
