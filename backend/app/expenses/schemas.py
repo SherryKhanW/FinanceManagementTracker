@@ -36,3 +36,18 @@ class ExpenseResponse(BaseModel):
     category: ExpenseCategory
     expense_date: date
     created_at: datetime
+
+class ExpenseUpdate(BaseModel):
+    description: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
+
+    amount: Decimal | None = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+    )
+    category: ExpenseCategory | None = None
+    expense_date: date | None = None
