@@ -1,4 +1,5 @@
 import { getAccessToken } from "./auth";
+import type { Expense } from "@/types/expense";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -43,7 +44,7 @@ export async function getCurrentUser() {
     return response.json();
 }
 
-export async function getExpenses() {
+export async function getExpenses(): Promise<Expense[]> {
     const token = await getAccessToken();
     
     if (!token) {
@@ -63,7 +64,9 @@ export async function getExpenses() {
     return response.json();
 }
 
-export async function createExpense(expense: CreateExpenseRequest) {
+export async function createExpense(
+    expense: CreateExpenseRequest
+): Promise<Expense> {
     const token = await getAccessToken();
 
     if (!token) {
@@ -108,7 +111,7 @@ export async function deleteExpense(expenseId: string) {
 export async function updateExpense(
     expenseId: string,
     expense: UpdateExpenseRequest
-) {
+): Promise<Expense> {
     const token = await getAccessToken();
 
     if (!token) {
