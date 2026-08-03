@@ -3,6 +3,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.expenses.router import router as expense_router
+from app.budgets.router import router as budgets_router
 from app.auth.dependencies import get_current_user
 
 app = FastAPI(
@@ -11,6 +12,7 @@ app = FastAPI(
 )
 
 app.include_router(expense_router)
+app.include_router(budgets_router)
 
 app.add_middleware(
     CORSMiddleware,
