@@ -13,6 +13,8 @@ import {
     getCurrentUser,
     getExpenses,
     updateExpense,
+    getCurrentBudget,
+    setCurrentBudget,
 } from "@/lib/api";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import type { Expense } from "@/types/expense";
@@ -27,6 +29,8 @@ export default function DashboardPage() {
     const [category, setCategory] = useState("");
     const [expenseDate, setExpenseDate] = useState("");
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+    const [budget, setBudget] = useState<BudgetSummary | null>(null);
+    const [budgetAmount, setBudgetAmount] = useState("");
 
     const summary = useMemo(() => {
         const totalExpenses = expenses.reduce(
@@ -73,6 +77,15 @@ export default function DashboardPage() {
         setExpenses(expenseData);
     }
 
+    const loadBudget = async () => {
+        const budgetData = await getCurrentBudget();
+        setBudget(budgetData);
+
+        if (budgetData) {
+            setBudgetAmount(budgetData.amount);
+        }
+    };
+
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -94,11 +107,29 @@ export default function DashboardPage() {
             }
 
             await loadExpenses();
+            await loadBudget();
+            
             resetForm();
         } catch (error) {
             console.error(error);
         }
     }
+
+    const handleBudgetSubmit = async (
+        event: React.FormEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+
+        try {
+            await setCurrentBudget({
+                amount: Number(budgetAmount),
+            });
+
+            await loadBudget();
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     function handleEdit(expense: Expense) {
         setDescription(expense.description);
@@ -120,6 +151,8 @@ export default function DashboardPage() {
         try {
             await deleteExpense(expenseId);
             await loadExpenses();
+            await loadBudget();
+            
         } catch (error) {
             console.error(error);
         }
@@ -132,6 +165,7 @@ export default function DashboardPage() {
                 setUser(currentUser);
 
                 await loadExpenses();
+                await loadBudget();
             } catch (error) {
                 console.error(error);
 
@@ -247,6 +281,69 @@ export default function DashboardPage() {
                                     : "No expense yet"
                             }
                         />
+
+                        <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-5">
+                            <div>
+                                <p className="text-sm font-medium text-stone-500">
+                                    Monthly Budget
+                                </p>
+
+                                <h2 className="mt-1 text-xl font-semibold text-stone-950">
+                                    {budget
+                                        ? `$${Number(budget.amount).toFixed(2)}`
+                                        : "No budget set"}
+                                </h2>
+                            </div>
+
+                            {budget && (
+                                <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                                    <div>
+                                        <p className="text-sm text-stone-500">Spent</p>
+                                        <p className="mt-1 font-semibold text-stone-950">
+                                            ${Number(budget.spent).toFixed(2)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-sm text-stone-500">Remaining</p>
+                                        <p className="mt-1 font-semibold text-stone-950">
+                                            ${Number(budget.remaining).toFixed(2)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-sm text-stone-500">Budget Used</p>
+                                        <p className="mt-1 font-semibold text-stone-950">
+                                            {Number(budget.percentage_used).toFixed(2)}%
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <form
+                                onSubmit={handleBudgetSubmit}
+                                className="mt-6 flex gap-3"
+                            >
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    placeholder="Monthly budget"
+                                    value={budgetAmount}
+                                    onChange={(e) => setBudgetAmount(e.target.value)}
+                                    className="w-full rounded-xl border border-stone-200 px-4 py-3 text-stone-950"
+                                    required
+                                />
+
+                                <button
+                                    type="submit"
+                                    className="rounded-xl bg-stone-950 px-5 py-3 font-semibold text-white"
+                                >
+                                    {budget ? "Update Budget" : "Set Budget"}
+                                </button>
+                            </form>
+                        </section>
+                        
                     </section>
 
                     <div className="mt-6 grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">

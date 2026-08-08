@@ -1,7 +1,9 @@
 from uuid import UUID
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy import extract, func, select
 
 from app.expenses.models import Expense
 
@@ -59,3 +61,22 @@ class ExpenseRepository:
     ) -> None:
         self.db.delete(expense)
         self.db.commit()
+
+    def get_monthly_expense_total(
+            self,
+            user_id: UUID,
+            month: int,
+            year: int,
+    ) -> Decimal:
+        statement = (
+            select(func.sum(Expense.amount))
+            .where(
+                Expense.user_id == user_id,
+                extract("month", Expense.expense_date) == month,
+                extract("year", Expense.expense_date) == year,
+                )
+        )
+
+        total = self.db.scalar(statement)
+    
+        return total or Decimal("0.00")

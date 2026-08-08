@@ -27,3 +27,11 @@ class BudgetResponse(BaseModel):
     month: int
     year: int
     created_at: datetime
+
+class BudgetSummaryResponse(BaseModel):
+    amount: Decimal
+    spent: Decimal
+    remaining: Decimal
+    percentage_used: Decimal
+    month: int
+    year: int

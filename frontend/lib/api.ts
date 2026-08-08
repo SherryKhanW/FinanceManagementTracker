@@ -133,3 +133,52 @@ export async function updateExpense(
 
     return response.json();
 }
+
+export async function getCurrentBudget(): Promise<BudgetSummary | null> {
+    const token = await getAccessToken();
+
+    if (!token) {
+        throw new Error("User is not authenticated.");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/budgets/current`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    if (response.status === 404) {
+        return null;
+    }
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch current budget.");
+    }
+
+    return response.json();
+}
+
+export async function setCurrentBudget(
+    budget: SetBudgetRequest
+) {
+    const token = await getAccessToken();
+
+    if (!token) {
+        throw new Error("User is not authenticated.");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/budgets/current`, {
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(budget),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to save budget.");
+    }
+
+    return response.json();
+}

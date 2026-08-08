@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status
 from supabase_auth.types import User
 
 from app.auth.dependencies import get_current_user
-from app.budgets.schemas import BudgetCreate, BudgetResponse
+from app.budgets.schemas import BudgetCreate, BudgetResponse, BudgetSummaryResponse
 from app.budgets.service import BudgetService
 from app.dependencies.budgets import get_budget_service
 
@@ -28,5 +28,23 @@ def set_current_budget(
 ) -> BudgetResponse:
     return service.set_current_budget(
         budget_data=budget,
+        user_id=UUID(current_user.id),
+    )
+
+@router.get(
+    "/current",
+    response_model=BudgetSummaryResponse,
+)
+def get_current_budget(
+        current_user: Annotated[
+            User,
+            Depends(get_current_user),
+        ],
+        service: Annotated[
+            BudgetService,
+            Depends(get_budget_service),
+        ],
+):
+    return service.get_current_budget(
         user_id=UUID(current_user.id),
     )
