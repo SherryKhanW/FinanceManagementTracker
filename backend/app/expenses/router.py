@@ -1,5 +1,6 @@
 from typing import Annotated
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Response, status
 from supabase_auth.types import User
@@ -9,7 +10,7 @@ from app.auth.dependencies import get_current_user
 from app.dependencies.expenses import get_expense_service
 from app.expenses import repository
 from app.expenses.models import Expense
-from app.expenses.schemas import ExpenseCreate, ExpenseResponse, ExpenseUpdate
+from app.expenses.schemas import ExpenseCreate, ExpenseResponse, ExpenseUpdate, ExpenseSummaryResponse
 from app.expenses.service import ExpenseService
 
 
@@ -86,4 +87,31 @@ def delete_expense(
         expense_id=expense_id,
         user_id=UUID(current_user.id),
     )
+
+
+@router.get(
+    "/summary",
+    response_model=ExpenseSummaryResponse,
+)
+def get_expense_summary(
+        current_user: Annotated[
+            User,
+            Depends(get_current_user),
+        ],
+        service: Annotated[
+            ExpenseService,
+            Depends(get_expense_service),
+        ],
+        month: int | None = None,
+        year: int | None = None,
+) -> ExpenseSummaryResponse:
+    now = datetime.now()
     
+    selected_month = month or now.month
+    selected_year = year or now.year
+    
+    return service.get_expense_summary(
+        user_id=UUID(current_user.id),
+        month = selected_month,
+        year = selected_year,
+    )

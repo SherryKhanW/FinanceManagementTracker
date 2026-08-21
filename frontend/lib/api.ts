@@ -24,6 +24,28 @@ export type UpdateExpenseRequest = {
     expense_date: string;
 };
 
+export type CategorySpending = {
+    category: string;
+    amount: string;
+    percentage: string;
+};
+
+export type ExpenseSummary = {
+    total_spent: string;
+    categories: CategorySpending[];
+};
+
+export type BudgetSummary = {
+    amount: string;
+    spent: string;
+    remaining: string;
+    percentage_used: string;
+};
+
+export type SetBudgetRequest = {
+    amount: number;
+};
+
 export async function getCurrentUser() {
     const token = await getAccessToken();
 
@@ -178,6 +200,44 @@ export async function setCurrentBudget(
 
     if (!response.ok) {
         throw new Error("Failed to save budget.");
+    }
+
+    return response.json();
+}
+
+export async function getExpenseSummary(
+    month?: number,
+    year?: number,
+): Promise<ExpenseSummary> {
+    const token = await getAccessToken();
+
+    if (!token) {
+        throw new Error("User is not authenticated.");
+    }
+
+    const params = new URLSearchParams();
+
+    if (month) {
+        params.append("month", month.toString());
+    }
+
+    if (year) {
+        params.append("year", year.toString());
+    }
+
+    const query = params.toString();
+
+    const response = await fetch(
+        `${API_BASE_URL}/expenses/summary${query ? `?${query}` : ""}`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch expense summary.");
     }
 
     return response.json();

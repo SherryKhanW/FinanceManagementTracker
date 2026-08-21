@@ -51,3 +51,13 @@ class ExpenseUpdate(BaseModel):
     )
     category: ExpenseCategory | None = None
     expense_date: date | None = None
+
+class CategorySpendingResponse(BaseModel):
+    category: ExpenseCategory
+    amount: Decimal
+    percentage: Decimal
+
+
+class ExpenseSummaryResponse(BaseModel):
+    total_spent: Decimal
+    categories: list[CategorySpendingResponse]

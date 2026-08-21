@@ -80,3 +80,24 @@ class ExpenseRepository:
         total = self.db.scalar(statement)
     
         return total or Decimal("0.00")
+
+    def get_spending_by_category(
+            self,
+            user_id: UUID,
+            month: int,
+            year: int,
+    ):
+        statement = (
+            select(
+                Expense.category,
+                func.sum(Expense.amount),
+            )
+            .where(
+                Expense.user_id == user_id,
+                extract("month", Expense.expense_date) == month,
+                extract("year", Expense.expense_date) == year,
+                )
+            .group_by(Expense.category)
+        )
+    
+        return self.db.execute(statement).all()

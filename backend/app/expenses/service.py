@@ -1,9 +1,11 @@
 from uuid import UUID
 from fastapi import HTTPException, status
+from datetime import date
+from decimal import Decimal
 
 from app.expenses.models import Expense
 from app.expenses.repository import ExpenseRepository
-from app.expenses.schemas import (ExpenseCreate, ExpenseUpdate, ExpenseResponse)
+from app.expenses.schemas import (ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseSummaryResponse, CategorySpendingResponse)
 
 
 class ExpenseService:
@@ -77,3 +79,42 @@ class ExpenseService:
             )
         
         self.repository.delete_expense(expense)
+
+    def get_expense_summary(
+            self,
+            user_id: UUID,
+            month: int,
+            year: int,
+    ) -> ExpenseSummaryResponse:
+
+        total_spent = self.repository.get_monthly_expense_total(
+            user_id=user_id,
+            month=month,
+            year=year,
+        )
+    
+        spending_by_category = self.repository.get_spending_by_category(
+            user_id=user_id,
+            month=month,
+            year=year,
+        )
+    
+        categories = []
+    
+        for category, amount in spending_by_category:
+            percentage = (
+                    (amount / total_spent) * Decimal("100")
+            ).quantize(Decimal("0.01"))
+    
+            categories.append(
+                CategorySpendingResponse(
+                    category=category,
+                    amount=amount,
+                    percentage=percentage,
+                )
+            )
+    
+        return ExpenseSummaryResponse(
+            total_spent=total_spent,
+            categories=categories,
+        )
