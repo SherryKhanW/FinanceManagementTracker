@@ -38,13 +38,13 @@ export default function SignupPage() {
             <section className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-[0_24px_80px_rgba(31,27,22,0.09)]">
                 <div className="mb-8">
                     <div className="flex size-11 items-center justify-center rounded-2xl bg-stone-950 text-sm font-semibold text-white">
-                        FT
+                        KP
                     </div>
                     <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-950">
                         Create account
                     </h1>
                     <p className="mt-2 text-sm text-stone-500">
-                        Start tracking your expenses with a clean dashboard.
+                        Start tracking your expenses!
                     </p>
                 </div>
 
