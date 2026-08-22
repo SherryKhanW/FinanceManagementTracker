@@ -16,6 +16,7 @@ type ExpenseFormProps = {
     category: string;
     expenseDate: string;
     isEditing: boolean;
+    error: string | null;
     onDescriptionChange: (value: string) => void;
     onAmountChange: (value: string) => void;
     onCategoryChange: (value: string) => void;
@@ -25,7 +26,7 @@ type ExpenseFormProps = {
 };
 
 const inputClassName =
-    "mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-stone-400 focus:bg-white focus:ring-4 focus:ring-stone-200";
+    "mt-2 min-h-11 w-full rounded-xl border border-[#E2E8E5] bg-[#F5F7F6] px-4 py-3 text-sm text-[#1E2A32] outline-none transition placeholder:text-[#66727A]/70 hover:border-[#3E8C7A] focus:border-[#3E8C7A] focus:bg-white focus:ring-4 focus:ring-[#E5F2EE]";
 
 export function ExpenseForm({
     description,
@@ -33,6 +34,7 @@ export function ExpenseForm({
     category,
     expenseDate,
     isEditing,
+    error,
     onDescriptionChange,
     onAmountChange,
     onCategoryChange,
@@ -41,17 +43,20 @@ export function ExpenseForm({
     onCancelEdit,
 }: ExpenseFormProps) {
     return (
-        <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-[0_20px_60px_rgba(31,27,22,0.06)]">
+        <section className="rounded-3xl bg-white p-5 shadow-[0_14px_40px_rgba(23,50,77,0.06)] ring-1 ring-[#E2E8E5]">
             <div>
-                <p className="text-sm font-medium text-stone-500">Expense entry</p>
-                <h2 className="mt-1 text-xl font-semibold tracking-tight text-stone-950">
+                <p className="text-sm font-medium text-[#66727A]">Expense entry</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#1E2A32]">
                     {isEditing ? "Edit expense" : "Add expense"}
                 </h2>
+                <p className="mt-2 text-sm leading-6 text-[#66727A]">
+                    Keep transaction details concise and consistent for easier review.
+                </p>
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={onSubmit}>
                 <label className="block">
-                    <span className="text-sm font-medium text-stone-700">
+                    <span className="text-sm font-medium text-[#1E2A32]">
                         Description
                     </span>
                     <input
@@ -64,7 +69,7 @@ export function ExpenseForm({
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-medium text-stone-700">Amount</span>
+                    <span className="text-sm font-medium text-[#1E2A32]">Amount</span>
                     <input
                         type="number"
                         placeholder="0.00"
@@ -75,7 +80,7 @@ export function ExpenseForm({
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-medium text-stone-700">Category</span>
+                    <span className="text-sm font-medium text-[#1E2A32]">Category</span>
                     <select
                         value={category}
                         onChange={(event) => onCategoryChange(event.target.value)}
@@ -93,7 +98,7 @@ export function ExpenseForm({
                 </label>
 
                 <label className="block">
-                    <span className="text-sm font-medium text-stone-700">Date</span>
+                    <span className="text-sm font-medium text-[#1E2A32]">Date</span>
                     <input
                         type="date"
                         value={expenseDate}
@@ -102,19 +107,28 @@ export function ExpenseForm({
                     />
                 </label>
 
+                {error && (
+                    <div
+                        role="alert"
+                        className="rounded-2xl bg-[#FDF2F2] px-4 py-3 text-sm font-medium leading-6 text-[#C65B5B] ring-1 ring-[#F4D1D1]"
+                    >
+                        {error}
+                    </div>
+                )}
+
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row">
                     <button
                         type="submit"
-                        className="inline-flex flex-1 items-center justify-center rounded-xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-300"
+                        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
                     >
-                        {isEditing ? "Update Expense" : "Create Expense"}
+                        {isEditing ? "Update expense" : "Create expense"}
                     </button>
 
                     {isEditing && (
                         <button
                             type="button"
                             onClick={onCancelEdit}
-                            className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 focus:outline-none focus:ring-4 focus:ring-stone-200"
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#F5F7F6] px-5 py-3 text-sm font-semibold text-[#17324D] ring-1 ring-[#E2E8E5] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
                         >
                             Cancel
                         </button>

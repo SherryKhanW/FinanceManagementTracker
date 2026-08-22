@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f4ef;
-  --foreground: #1c1917;
+  --background: #F5F7F6;
+  --foreground: #1E2A32;
 }
 
 @theme inline {
@@ -29,4 +29,51 @@ body {
 button,
 input {
   font: inherit;
+}
+
+.kp-logo {
+  animation: kp-logo-float 5s ease-in-out infinite;
+}
+
+.kp-logo-shine {
+  position: absolute;
+  inset: -45%;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.28) 48%,
+    transparent 62%
+  );
+  transform: translateX(-65%) rotate(12deg);
+  animation: kp-logo-shine 4.5s ease-in-out infinite;
+}
+
+@keyframes kp-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes kp-logo-shine {
+  0%,
+  58% {
+    transform: translateX(-65%) rotate(12deg);
+  }
+
+  78%,
+  100% {
+    transform: translateX(65%) rotate(12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kp-logo,
+  .kp-logo-shine {
+    animation: none;
+  }
 }

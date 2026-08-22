@@ -2,10 +2,11 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from datetime import date
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
 
 from app.expenses.models import Expense
 from app.expenses.repository import ExpenseRepository
-from app.expenses.schemas import (ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseSummaryResponse, CategorySpendingResponse)
+from app.expenses.schemas import (ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseSummaryResponse, CategorySpendingResponse, MonthlySpendingPoint, MonthlySpendingTrendResponse)
 
 
 class ExpenseService:
@@ -117,4 +118,47 @@ class ExpenseService:
         return ExpenseSummaryResponse(
             total_spent=total_spent,
             categories=categories,
+        )
+
+    def get_monthly_spending_trend(
+            self,
+            user_id: UUID,
+            months: int,
+    ) -> MonthlySpendingTrendResponse:
+        today = date.today()
+
+        start_month = today.replace(day=1) - relativedelta(
+            months=months - 1
+        )
+    
+        rows = self.repository.get_monthly_spending_trend(
+            user_id=user_id,
+            start_date=start_month,
+        )
+    
+        totals_by_month = {
+            (int(year), int(month)): total
+            for year, month, total in rows
+        }
+    
+        points = []
+    
+        for offset in range(months):
+            current_month = start_month + relativedelta(months=offset)
+    
+            total = totals_by_month.get(
+                (current_month.year, current_month.month),
+                Decimal("0.00"),
+            )
+    
+            points.append(
+                MonthlySpendingPoint(
+                    month=current_month.month,
+                    year=current_month.year,
+                    total_spent=total,
+                )
+            )
+
+        return MonthlySpendingTrendResponse(
+            months=points
         )

@@ -101,3 +101,30 @@ class ExpenseRepository:
         )
     
         return self.db.execute(statement).all()
+
+    def get_monthly_spending_trend(
+            self,
+            user_id: UUID,
+            start_date,
+    ):
+        statement = (
+            select(
+                extract("year", Expense.expense_date).label("year"),
+                extract("month", Expense.expense_date).label("month"),
+                func.sum(Expense.amount).label("total_spent"),
+            )
+            .where(
+                Expense.user_id == user_id,
+                Expense.expense_date >= start_date,
+                )
+            .group_by(
+                extract("year", Expense.expense_date),
+                extract("month", Expense.expense_date),
+            )
+            .order_by(
+                extract("year", Expense.expense_date),
+                extract("month", Expense.expense_date),
+            )
+        )
+
+        return self.db.execute(statement).all()

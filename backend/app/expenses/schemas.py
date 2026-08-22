@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.expenses.models import ExpenseCategory
 
@@ -11,7 +11,7 @@ from app.expenses.models import ExpenseCategory
 class ExpenseCreate(BaseModel):
     description: Annotated[
         str,
-        Field(min_length=1, max_length=255),
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
     ]
 
     amount: Annotated[
@@ -38,11 +38,10 @@ class ExpenseResponse(BaseModel):
     created_at: datetime
 
 class ExpenseUpdate(BaseModel):
-    description: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=255,
-    )
+    description: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    ] | None = None
 
     amount: Decimal | None = Field(
         default=None,
@@ -61,3 +60,13 @@ class CategorySpendingResponse(BaseModel):
 class ExpenseSummaryResponse(BaseModel):
     total_spent: Decimal
     categories: list[CategorySpendingResponse]
+
+
+class MonthlySpendingPoint(BaseModel):
+    month: int
+    year: int
+    total_spent: Decimal
+
+
+class MonthlySpendingTrendResponse(BaseModel):
+    months: list[MonthlySpendingPoint]

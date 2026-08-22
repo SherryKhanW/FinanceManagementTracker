@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 
-import SpendingByCategoryChart from "@/components/SpendingByCategoryChart";
+import { AIInsightsCard } from "@/components/AIInsightsCard";
+import { AnalyticsCard } from "@/components/AnalyticsCard";
+import { BudgetCard } from "@/components/BudgetCard";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseTable } from "@/components/ExpenseTable";
 import { SummaryCard } from "@/components/SummaryCard";
@@ -17,17 +19,152 @@ import {
     getCurrentBudget,
     setCurrentBudget,
     getExpenseSummary,
+    getAIInsights,
+    getMonthlySpendingTrend,
+    type AIInsightResponse,
     type BudgetSummary,
     type ExpenseSummary,
+    type MonthlySpendingTrendMonth,
 } from "@/lib/api";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import type { Expense } from "@/types/expense";
 
 const cardClassName =
-    "rounded-2xl border border-stone-200 bg-white shadow-[0_20px_60px_rgba(31,27,22,0.06)]";
+    "rounded-2xl bg-white shadow-[0_14px_40px_rgba(23,50,77,0.06)] ring-1 ring-[#E2E8E5]";
+
+type DashboardTab = "overview" | "expenses" | "budget" | "analytics" | "insights";
+
+type ValidatedExpenseInput = {
+    description: string;
+    amount: number;
+    category: string;
+    expense_date: string;
+};
+
+const dashboardTabs: Array<{
+    id: DashboardTab;
+    label: string;
+    description: string;
+}> = [
+    {
+        id: "overview",
+        label: "Overview",
+        description: "Monthly snapshot",
+    },
+    {
+        id: "expenses",
+        label: "Expenses",
+        description: "Add and manage",
+    },
+    {
+        id: "budget",
+        label: "Budget",
+        description: "Target and usage",
+    },
+    {
+        id: "analytics",
+        label: "Analytics",
+        description: "Trends and categories",
+    },
+    {
+        id: "insights",
+        label: "AI insights",
+        description: "Monthly guidance",
+    },
+];
+
+const pageCopy: Record<DashboardTab, { title: string; subtitle: string; eyebrow: string }> = {
+    overview: {
+        eyebrow: "Overview",
+        title: "Dashboard",
+        subtitle:
+            "A focused view of this month’s spending, budget progress, recent expenses, and AI guidance.",
+    },
+    expenses: {
+        eyebrow: "Transactions",
+        title: "Expenses",
+        subtitle: "Add, edit, and review the expenses that power your dashboard.",
+    },
+    budget: {
+        eyebrow: "Planning",
+        title: "Monthly Budget",
+        subtitle: "Track spending against your current monthly target.",
+    },
+    analytics: {
+        eyebrow: "Analysis",
+        title: "Analytics",
+        subtitle: "Review category spending and prepare for monthly trend analysis.",
+    },
+    insights: {
+        eyebrow: "AI guidance",
+        title: "AI Financial Insights",
+        subtitle: "Generate concise guidance based on your current spending and budget.",
+    },
+};
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+    return error instanceof Error ? error.message : fallbackMessage;
+}
+
+function validateExpenseInput(
+    description: string,
+    amount: string,
+    category: string,
+    expenseDate: string
+): { data: ValidatedExpenseInput; error: null } | { data: null; error: string } {
+    const trimmedDescription = description.trim();
+    const parsedAmount = Number(amount);
+
+    if (!trimmedDescription) {
+        return { data: null, error: "Please enter a description." };
+    }
+
+    if (!amount.trim() || Number.isNaN(parsedAmount) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return { data: null, error: "Please enter an amount greater than 0." };
+    }
+
+    if (!category) {
+        return { data: null, error: "Please select a category." };
+    }
+
+    if (!expenseDate) {
+        return { data: null, error: "Please select a date." };
+    }
+
+    return {
+        data: {
+            description: trimmedDescription,
+            amount: parsedAmount,
+            category,
+            expense_date: expenseDate,
+        },
+        error: null,
+    };
+}
+
+function validatePositiveAmount(
+    value: string,
+    emptyMessage: string,
+    invalidMessage: string
+): { amount: number; error: null } | { amount: null; error: string } {
+    const parsedAmount = Number(value);
+
+    if (!value.trim()) {
+        return { amount: null, error: emptyMessage };
+    }
+
+    if (Number.isNaN(parsedAmount) || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return { amount: null, error: invalidMessage };
+    }
+
+    return { amount: parsedAmount, error: null };
+}
 
 export default function DashboardPage() {
     const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
     const [user, setUser] = useState<User | null>(null);
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,48 +173,62 @@ export default function DashboardPage() {
     const [amount, setAmount] = useState("");
     const [category, setCategory] = useState("");
     const [expenseDate, setExpenseDate] = useState("");
+    const [expenseFormError, setExpenseFormError] = useState<string | null>(null);
+    const [expenseDeleteError, setExpenseDeleteError] = useState<string | null>(null);
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
     const [budget, setBudget] = useState<BudgetSummary | null>(null);
     const [budgetAmount, setBudgetAmount] = useState("");
+    const [budgetError, setBudgetError] = useState<string | null>(null);
     const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
+    const [monthlyTrend, setMonthlyTrend] = useState<MonthlySpendingTrendMonth[]>([]);
+    const [monthlyTrendLoading, setMonthlyTrendLoading] = useState(false);
+    const [monthlyTrendError, setMonthlyTrendError] = useState<string | null>(null);
+    const [aiInsights, setAiInsights] = useState<AIInsightResponse | null>(null);
+    const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+    const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
     const [selectedMonth, setSelectedMonth] = useState(
-        currentDate.getMonth() + 1
+        currentMonth + 1
     );
-    const [selectedYear, setSelectedYear] = useState(
-        currentDate.getFullYear()
-    );
+    const selectedYear = currentYear;
+
+    const currentMonthExpenses = useMemo(() => {
+        return expenses.filter((expense) => {
+            const expenseDate = new Date(expense.expense_date);
+
+            return (
+                expenseDate.getMonth() === currentMonth &&
+                expenseDate.getFullYear() === currentYear
+            );
+        });
+    }, [expenses, currentMonth, currentYear]);
+
+    const recentExpenses = useMemo(() => {
+        return [...expenses]
+            .sort(
+                (first, second) =>
+                    new Date(second.expense_date).getTime() -
+                    new Date(first.expense_date).getTime()
+            )
+            .slice(0, 5);
+    }, [expenses]);
+
+    const topCategories = useMemo(() => {
+        return expenseSummary?.categories.slice(0, 4) ?? [];
+    }, [expenseSummary]);
 
     const summary = useMemo(() => {
-        const totalExpenses = expenses.reduce(
+        const totalExpenses = currentMonthExpenses.reduce(
             (total, expense) => total + Number(expense.amount || 0),
             0
         );
 
-        const largestExpense = expenses.reduce<Expense | null>((largest, expense) => {
-            if (!largest) {
-                return expense;
-            }
-
-            return Number(expense.amount) > Number(largest.amount) ? expense : largest;
-        }, null);
-
-        const mostRecentExpense = expenses.reduce<Expense | null>((latest, expense) => {
-            if (!latest) {
-                return expense;
-            }
-
-            return new Date(expense.expense_date) > new Date(latest.expense_date)
-                ? expense
-                : latest;
-        }, null);
-
         return {
             totalExpenses,
-            count: expenses.length,
-            largestExpense,
-            mostRecentExpense,
+            count: currentMonthExpenses.length,
         };
-    }, [expenses]);
+    }, [currentMonthExpenses]);
+
+    const headerCopy = pageCopy[activeTab];
 
     const budgetUsedPercentage = budget
         ? Math.min(Number(budget.percentage_used), 100)
@@ -89,6 +240,7 @@ export default function DashboardPage() {
         setCategory("");
         setExpenseDate("");
         setEditingExpenseId(null);
+        setExpenseFormError(null);
     }
 
     async function loadExpenses() {
@@ -113,34 +265,82 @@ export default function DashboardPage() {
         
         setExpenseSummary(summaryData);
     };
+
+    const loadMonthlySpendingTrend = async () => {
+        setMonthlyTrendLoading(true);
+        setMonthlyTrendError(null);
+
+        try {
+            const trendData = await getMonthlySpendingTrend(6);
+            setMonthlyTrend(trendData.months);
+        } catch (error) {
+            console.error(error);
+
+            if (error instanceof Error) {
+                setMonthlyTrendError(error.message);
+            } else {
+                setMonthlyTrendError("Failed to fetch monthly spending trend.");
+            }
+        } finally {
+            setMonthlyTrendLoading(false);
+        }
+    };
+
+    async function handleGenerateInsights() {
+        setAiInsightsLoading(true);
+        setAiInsightsError(null);
+
+        try {
+            const insights = await getAIInsights();
+            setAiInsights(insights);
+        } catch (error) {
+            console.error(error);
+
+            if (error instanceof Error) {
+                setAiInsightsError(error.message);
+            } else {
+                setAiInsightsError("Failed to generate AI financial insights.");
+            }
+        } finally {
+            setAiInsightsLoading(false);
+        }
+    }
     
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        setExpenseFormError(null);
+        setExpenseDeleteError(null);
+
+        const validation = validateExpenseInput(
+            description,
+            amount,
+            category,
+            expenseDate
+        );
+
+        if (!validation.data) {
+            setExpenseFormError(validation.error);
+            return;
+        }
 
         try {
             if (editingExpenseId) {
-                await updateExpense(editingExpenseId, {
-                    description,
-                    amount: Number(amount),
-                    category,
-                    expense_date: expenseDate,
-                });
+                await updateExpense(editingExpenseId, validation.data);
             } else {
-                await createExpense({
-                    description,
-                    amount: Number(amount),
-                    category,
-                    expense_date: expenseDate,
-                });
+                await createExpense(validation.data);
             }
 
             await loadExpenses();
             await loadBudget();
             await loadExpenseSummary();
+            await loadMonthlySpendingTrend();
             
             resetForm();
         } catch (error) {
             console.error(error);
+            setExpenseFormError(
+                getErrorMessage(error, "Unable to save expense. Please try again.")
+            );
         }
     }
 
@@ -148,15 +348,30 @@ export default function DashboardPage() {
         event: React.FormEvent<HTMLFormElement>
     ) => {
         event.preventDefault();
+        setBudgetError(null);
+
+        const validation = validatePositiveAmount(
+            budgetAmount,
+            "Please enter a budget amount.",
+            "Please enter a budget greater than 0."
+        );
+
+        if (validation.amount === null) {
+            setBudgetError(validation.error);
+            return;
+        }
 
         try {
             await setCurrentBudget({
-                amount: Number(budgetAmount),
+                amount: validation.amount,
             });
 
             await loadBudget();
         } catch (error) {
             console.error(error);
+            setBudgetError(
+                getErrorMessage(error, "Unable to save budget. Please try again.")
+            );
         }
     };
 
@@ -166,9 +381,13 @@ export default function DashboardPage() {
         setCategory(expense.category);
         setExpenseDate(expense.expense_date);
         setEditingExpenseId(expense.id);
+        setExpenseFormError(null);
+        setExpenseDeleteError(null);
+        setActiveTab("expenses");
     }
 
     async function handleDelete(expenseId: string) {
+        setExpenseDeleteError(null);
         const confirmed = window.confirm(
             "Are you sure you want to delete this expense?"
         );
@@ -182,9 +401,13 @@ export default function DashboardPage() {
             await loadExpenses();
             await loadBudget();
             await loadExpenseSummary();
+            await loadMonthlySpendingTrend();
             
         } catch (error) {
             console.error(error);
+            setExpenseDeleteError(
+                getErrorMessage(error, "Unable to delete expense. Please try again.")
+            );
         }
     }
 
@@ -196,6 +419,7 @@ export default function DashboardPage() {
 
                 await loadExpenses();
                 await loadBudget();
+                await loadMonthlySpendingTrend();
             } catch (error) {
                 console.error(error);
 
@@ -213,18 +437,32 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        loadExpenseSummary();
+        async function refreshExpenseSummary() {
+            try {
+                const summaryData = await getExpenseSummary(
+                    selectedMonth,
+                    selectedYear
+                );
+
+                setExpenseSummary(summaryData);
+            } catch (error) {
+                console.error(error);
+                setExpenseSummary(null);
+            }
+        }
+
+        refreshExpenseSummary();
     }, [selectedMonth, selectedYear]);
 
     if (loading) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-[#f7f4ef] px-6">
-                <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 shadow-[0_20px_60px_rgba(31,27,22,0.06)]">
-                    <div className="h-3 w-24 rounded-full bg-stone-200" />
-                    <div className="mt-4 h-8 w-48 rounded-full bg-stone-100" />
+            <main className="flex min-h-screen items-center justify-center bg-[#F5F7F6] px-6">
+                <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_14px_40px_rgba(23,50,77,0.06)] ring-1 ring-[#E2E8E5]">
+                    <div className="h-3 w-24 rounded-full bg-[#E2E8E5]" />
+                    <div className="mt-4 h-8 w-48 rounded-full bg-[#F5F7F6]" />
                     <div className="mt-6 space-y-3">
-                        <div className="h-4 rounded-full bg-stone-100" />
-                        <div className="h-4 w-3/4 rounded-full bg-stone-100" />
+                        <div className="h-4 rounded-full bg-[#F5F7F6]" />
+                        <div className="h-4 w-3/4 rounded-full bg-[#F5F7F6]" />
                     </div>
                 </div>
             </main>
@@ -233,275 +471,440 @@ export default function DashboardPage() {
 
     if (error) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-[#f7f4ef] px-6">
-                <div className="max-w-md rounded-2xl border border-red-200 bg-red-50 px-6 py-5 text-sm font-medium text-red-700 shadow-sm">
-                    {error}
+            <main className="flex min-h-screen items-center justify-center bg-[#F5F7F6] px-6">
+                <div className="max-w-md rounded-2xl bg-[#FDF2F2] px-6 py-5 text-sm font-medium leading-6 text-[#C65B5B] shadow-sm ring-1 ring-[#F4D1D1]">
+                    Unable to load dashboard. {error}
                 </div>
             </main>
         );
     }
 
     return (
-        <main className="min-h-screen bg-[#f7f4ef] text-stone-950">
+        <main className="min-h-screen bg-[#F5F7F6] text-[#1E2A32]">
             <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
-                <aside className="border-b border-stone-200 bg-white/80 px-5 py-4 backdrop-blur lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r lg:px-6 lg:py-8">
-                    <div className="flex items-center gap-3 rounded-2xl bg-stone-950 p-3 text-white shadow-sm">
-                        <div className="flex size-10 items-center justify-center rounded-2xl bg-stone-950 text-sm font-semibold text-white">
-                            FT
+                <aside className="border-b border-[#E2E8E5] bg-white/80 px-5 py-4 backdrop-blur lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r lg:px-6 lg:py-7">
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="kp-logo group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#17324D] text-sm font-bold tracking-tight text-white shadow-[0_12px_28px_rgba(23,50,77,0.18)] ring-1 ring-[#17324D]/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(23,50,77,0.24)]"
+                            aria-label="Kesa Paisa logo"
+                        >
+                            <span className="kp-logo-shine" aria-hidden="true" />
+                            <span className="relative z-10">KP</span>
+                            <span
+                                className="absolute bottom-1.5 right-1.5 h-2 w-2 rounded-full bg-[#3E8C7A] ring-2 ring-white"
+                                aria-hidden="true"
+                            />
                         </div>
                         <div>
-                            <p className="text-sm font-semibold">Kesa Paisa?</p>
-                            <p className="text-xs text-stone-300">Monthly overview</p>
+                            <p className="text-base font-semibold tracking-tight text-[#17324D]">
+                                Kesa Paisa?
+                            </p>
+                            <p className="text-xs text-[#66727A]">
+                                Akhir kidhr gya paisa?
+                            </p>
                         </div>
                     </div>
 
                     {user && (
-                        <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                        <div className="mt-5 rounded-2xl bg-[#F5F7F6] p-3 ring-1 ring-[#E2E8E5]">
+                            <p className="text-xs font-medium uppercase tracking-wide text-[#66727A]">
                                 Signed in
                             </p>
-                            <p className="mt-2 truncate text-sm font-medium text-stone-800">
+                            <p className="mt-1 truncate text-sm font-medium text-[#1E2A32]">
                                 {user.email}
                             </p>
                         </div>
                     )}
 
                     {budget && (
-                        <div className="mt-5 hidden rounded-2xl border border-stone-200 bg-white p-4 lg:block">
-                            <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                        <div className="mt-4 hidden rounded-2xl bg-[#F5F7F6] p-3 ring-1 ring-[#E2E8E5] lg:block">
+                            <p className="text-xs font-medium uppercase tracking-wide text-[#66727A]">
                                 Budget used
                             </p>
-                            <p className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
+                            <p className="mt-1 text-xl font-semibold tracking-tight text-[#17324D]">
                                 {Number(budget.percentage_used).toFixed(0)}%
                             </p>
-                            <div className="mt-4 h-2 rounded-full bg-stone-100">
+                            <div className="mt-3 h-2 rounded-full bg-white">
                                 <div
-                                    className="h-2 rounded-full bg-stone-950"
+                                    className="h-2 rounded-full bg-[#3E8C7A]"
                                     style={{ width: `${budgetUsedPercentage}%` }}
                                 />
                             </div>
                         </div>
                     )}
+
+                    <nav className="mt-6 hidden space-y-1.5 lg:block" aria-label="Dashboard sections">
+                        {dashboardTabs.map((tab) => {
+                            const isActive = activeTab === tab.id;
+
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`relative w-full rounded-xl px-3.5 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] ${
+                                        isActive
+                                            ? "bg-[#E5F2EE] text-[#17324D]"
+                                            : "text-[#66727A] hover:bg-[#F5F7F6] hover:text-[#17324D]"
+                                    }`}
+                                    aria-current={isActive ? "page" : undefined}
+                                >
+                                    {isActive && (
+                                        <span className="absolute left-0 top-3 h-7 w-1 rounded-r-full bg-[#3E8C7A]" />
+                                    )}
+                                    <span className="block text-sm font-semibold">
+                                        {tab.label}
+                                    </span>
+                                    <span
+                                        className={`mt-0.5 block text-xs ${
+                                            isActive ? "text-[#3E8C7A]" : "text-[#66727A]/75"
+                                        }`}
+                                    >
+                                        {tab.description}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </nav>
                 </aside>
 
-                <section className="flex-1 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-                    <header className={`${cardClassName} p-6 md:p-7`}>
+                <section className="flex-1 px-4 py-5 sm:px-8 lg:px-10 lg:py-8">
+                    <header className="px-1">
                         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
                             <div>
-                                <p className="text-sm font-medium text-stone-500">
-                                    Overview
+                                <p className="text-sm font-medium text-[#66727A]">
+                                    {headerCopy.eyebrow}
                                 </p>
-                                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
-                                    Dashboard
+                                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#1E2A32] sm:text-4xl">
+                                    {headerCopy.title}
                                 </h1>
-                                <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-500">
-                                    Track spending, manage this month&apos;s budget, and keep
-                                    recent expenses organized in one place.
+                                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#66727A]">
+                                    {headerCopy.subtitle}
                                 </p>
                                 {user && (
-                                    <p className="mt-3 text-sm text-stone-500 md:hidden">
+                                    <p className="mt-3 text-sm text-[#66727A] md:hidden">
                                         Signed in as {user.email}
                                     </p>
                                 )}
                             </div>
 
-                            <div className="inline-flex w-fit rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-600">
-                                {expenses.length} tracked expenses
-                            </div>
+                            {(activeTab === "overview" || activeTab === "expenses") && (
+                                <div className="inline-flex min-h-10 w-fit items-center rounded-full bg-white px-4 py-2 text-sm font-medium text-[#66727A] ring-1 ring-[#E2E8E5]">
+                                    {expenses.length} tracked expenses
+                                </div>
+                            )}
                         </div>
                     </header>
 
-                    <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <SummaryCard
-                            label="Total Expenses"
-                            value={formatMoney(summary.totalExpenses)}
-                            detail="All tracked spending"
-                        />
-                        <SummaryCard
-                            label="Number of Expenses"
-                            value={String(summary.count)}
-                            detail="Saved transactions"
-                        />
-                        <SummaryCard
-                            label="Largest Expense"
-                            value={
-                                summary.largestExpense
-                                    ? formatMoney(summary.largestExpense.amount)
-                                    : formatMoney(0)
-                            }
-                            detail={summary.largestExpense?.description ?? "No expense yet"}
-                        />
-                        <SummaryCard
-                            label="Most Recent Expense"
-                            value={
-                                summary.mostRecentExpense
-                                    ? formatMoney(summary.mostRecentExpense.amount)
-                                    : formatMoney(0)
-                            }
-                            detail={
-                                summary.mostRecentExpense
-                                    ? formatDate(summary.mostRecentExpense.expense_date)
-                                    : "No expense yet"
-                            }
-                        />
-                    </section>
+                    <div
+                        className="mt-6 overflow-x-auto rounded-2xl bg-white p-2 shadow-[0_14px_40px_rgba(23,50,77,0.06)] ring-1 ring-[#E2E8E5] lg:hidden"
+                        role="tablist"
+                        aria-label="Dashboard sections"
+                    >
+                        <div className="flex min-w-max gap-2">
+                            {dashboardTabs.map((tab) => {
+                                const isActive = activeTab === tab.id;
 
-                    <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-                        <section className={`${cardClassName} p-5`}>
-                        <div>
-                            <p className="text-sm font-medium text-stone-500">
-                                Monthly Budget
-                            </p>
-
-                            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-950">
-                                {budget
-                                    ? formatMoney(budget.amount)
-                                    : "No budget set"}
-                            </h2>
-                            <p className="mt-2 text-sm text-stone-500">
-                                Set a monthly spending target.
-                            </p>
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={isActive}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`min-h-11 rounded-xl px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] ${
+                                            isActive
+                                                ? "bg-[#E5F2EE] text-[#17324D]"
+                                                : "text-[#66727A] hover:bg-[#F5F7F6] hover:text-[#17324D]"
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
                         </div>
+                    </div>
 
-                        {budget && (
-                            <>
-                                <div className="mt-5 h-2 rounded-full bg-stone-100">
-                                    <div
-                                        className="h-2 rounded-full bg-stone-950 transition-all"
-                                        style={{ width: `${budgetUsedPercentage}%` }}
+                    <section className="mt-6" role="tabpanel">
+                        {activeTab === "overview" && (
+                            <div className="space-y-6">
+                                <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                    <SummaryCard
+                                        label="Total spending this month"
+                                        value={formatMoney(summary.totalExpenses)}
+                                        detail="Current month"
                                     />
-                                </div>
+                                    <SummaryCard
+                                        label="Number of expenses"
+                                        value={String(summary.count)}
+                                        detail="This month"
+                                    />
+                                    <SummaryCard
+                                        label="Remaining monthly budget"
+                                        value={
+                                            budget
+                                                ? formatMoney(budget.remaining)
+                                                : formatMoney(0)
+                                        }
+                                        detail={budget ? "After tracked spending" : "No budget set"}
+                                    />
+                                    <SummaryCard
+                                        label="Budget usage"
+                                        value={
+                                            budget
+                                                ? `${Number(budget.percentage_used).toFixed(1)}%`
+                                                : "0.0%"
+                                        }
+                                        detail={budget ? "Used this month" : "Set a target to track usage"}
+                                    />
+                                </section>
 
-                                <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                                    <div className="rounded-xl bg-stone-50 p-3">
-                                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                                            Spent
-                                        </p>
-                                        <p className="mt-1 font-semibold text-stone-950">
-                                            {formatMoney(budget.spent)}
-                                        </p>
+                                <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+                                    <div className={`${cardClassName} p-5`}>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-[#66727A]">
+                                                    Monthly budget progress
+                                                </p>
+                                                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#1E2A32]">
+                                                    {budget ? formatMoney(budget.amount) : "No budget set"}
+                                                </h2>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab("budget")}
+                                                className="min-h-10 rounded-xl px-3 py-2 text-sm font-semibold text-[#17324D] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                                            >
+                                                Manage
+                                            </button>
+                                        </div>
+
+                                        {budget ? (
+                                            <>
+                                                <div className="mt-5 h-3 rounded-full bg-[#F5F7F6]">
+                                                    <div
+                                                        className={`h-3 rounded-full ${
+                                                            Number(budget.percentage_used) >= 85
+                                                                ? "bg-[#D59A42]"
+                                                                : "bg-[#3E8C7A]"
+                                                        }`}
+                                                        style={{ width: `${budgetUsedPercentage}%` }}
+                                                    />
+                                                </div>
+                                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                                    <div>
+                                                        <p className="text-xs font-medium uppercase tracking-wide text-[#66727A]">
+                                                            Spent
+                                                        </p>
+                                                        <p className="mt-1 font-semibold text-[#1E2A32]">
+                                                            {formatMoney(budget.spent)}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-medium uppercase tracking-wide text-[#66727A]">
+                                                            Remaining
+                                                        </p>
+                                                        <p className="mt-1 font-semibold text-[#1E2A32]">
+                                                            {formatMoney(budget.remaining)}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-medium uppercase tracking-wide text-[#66727A]">
+                                                            Used
+                                                        </p>
+                                                        <p className="mt-1 font-semibold text-[#1E2A32]">
+                                                            {Number(budget.percentage_used).toFixed(1)}%
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="mt-5 rounded-2xl bg-[#F5F7F6] p-4 text-sm leading-6 text-[#66727A] ring-1 ring-[#E2E8E5]">
+                                                Add a monthly budget to make this overview more useful.
+                                            </p>
+                                        )}
                                     </div>
 
-                                    <div className="rounded-xl bg-stone-50 p-3">
-                                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                                            Remaining
-                                        </p>
-                                        <p className="mt-1 font-semibold text-stone-950">
-                                            {formatMoney(budget.remaining)}
-                                        </p>
+                                    <div className={`${cardClassName} p-5`}>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-[#66727A]">
+                                                    Spending by category
+                                                </p>
+                                                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#1E2A32]">
+                                                    {formatMoney(expenseSummary?.total_spent ?? 0)}
+                                                </h2>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab("analytics")}
+                                                className="min-h-10 rounded-xl px-3 py-2 text-sm font-semibold text-[#17324D] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                                            >
+                                                View
+                                            </button>
+                                        </div>
+
+                                        {topCategories.length > 0 ? (
+                                            <div className="mt-5 space-y-3">
+                                                {topCategories.map((category) => (
+                                                    <div key={category.category}>
+                                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                                            <span className="font-medium text-[#1E2A32]">
+                                                                {category.category}
+                                                            </span>
+                                                            <span className="text-[#66727A]">
+                                                                {formatMoney(category.amount)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-2 h-2 rounded-full bg-[#F5F7F6]">
+                                                            <div
+                                                                className="h-2 rounded-full bg-[#3E8C7A]"
+                                                                style={{
+                                                                    width: `${Math.min(Number(category.percentage), 100)}%`,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-5 rounded-2xl bg-[#F5F7F6] p-4 text-sm leading-6 text-[#66727A] ring-1 ring-[#E2E8E5]">
+                                                Add expenses to see category distribution for this month.
+                                            </p>
+                                        )}
+                                    </div>
+                                </section>
+
+                                <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                                    <div className={`${cardClassName} p-5`}>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-[#66727A]">
+                                                    Recent transactions
+                                                </p>
+                                                <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#1E2A32]">
+                                                    Latest activity
+                                                </h2>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab("expenses")}
+                                                className="min-h-10 rounded-xl px-3 py-2 text-sm font-semibold text-[#17324D] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                                            >
+                                                Add expense
+                                            </button>
+                                        </div>
+
+                                        {recentExpenses.length > 0 ? (
+                                            <div className="mt-4 divide-y divide-[#E2E8E5]">
+                                                {recentExpenses.map((expense) => (
+                                                    <div
+                                                        key={expense.id}
+                                                        className="flex items-center justify-between gap-4 py-3"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-semibold text-[#1E2A32]">
+                                                                {expense.description}
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-[#66727A]">
+                                                                {expense.category} · {formatDate(expense.expense_date)}
+                                                            </p>
+                                                        </div>
+                                                        <p className="shrink-0 text-sm font-semibold text-[#1E2A32]">
+                                                            {formatMoney(expense.amount)}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-4 rounded-2xl bg-[#F5F7F6] p-4 text-sm leading-6 text-[#66727A] ring-1 ring-[#E2E8E5]">
+                                                No expenses yet. Add one to start building your monthly picture.
+                                            </p>
+                                        )}
                                     </div>
 
-                                    <div className="rounded-xl bg-stone-50 p-3">
-                                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
-                                            Used
+                                    <div className={`${cardClassName} bg-[#FDFEFE] p-5`}>
+                                        <p className="text-sm font-medium text-[#66727A]">
+                                            AI insight preview
                                         </p>
-                                        <p className="mt-1 font-semibold text-stone-950">
-                                            {Number(budget.percentage_used).toFixed(1)}%
+                                        <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#1E2A32]">
+                                            {aiInsights ? "Guidance is ready" : "Generate monthly guidance"}
+                                        </h2>
+                                        <p className="mt-3 text-sm leading-6 text-[#66727A]">
+                                            {aiInsights
+                                                ? aiInsights.summary
+                                                : "Use current expenses, category totals, and budget data to create one concise monthly summary."}
                                         </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab("insights")}
+                                            className="mt-4 min-h-11 rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                                        >
+                                            Open AI insights
+                                        </button>
                                     </div>
-                                </div>
-                            </>
+                                </section>
+                            </div>
                         )}
 
-                            <form
-                                onSubmit={handleBudgetSubmit}
-                                className="mt-6 flex flex-col gap-3 sm:flex-row xl:flex-col"
-                            >
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    placeholder="Monthly budget"
-                                    value={budgetAmount}
-                                    onChange={(e) => setBudgetAmount(e.target.value)}
-                                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-stone-400 focus:bg-white focus:ring-4 focus:ring-stone-200"
-                                    required
+                        {activeTab === "expenses" && (
+                            <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+                                <ExpenseForm
+                                    description={description}
+                                    amount={amount}
+                                    category={category}
+                                    expenseDate={expenseDate}
+                                    isEditing={Boolean(editingExpenseId)}
+                                    error={expenseFormError}
+                                    onDescriptionChange={setDescription}
+                                    onAmountChange={setAmount}
+                                    onCategoryChange={setCategory}
+                                    onExpenseDateChange={setExpenseDate}
+                                    onSubmit={handleSubmit}
+                                    onCancelEdit={resetForm}
                                 />
 
-                                <button
-                                    type="submit"
-                                    className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-300"
-                                >
-                                    {budget ? "Update Budget" : "Set Budget"}
-                                </button>
-                            </form>
-                        </section>
-
-                        <section className={`${cardClassName} p-5`}>
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-stone-500">
-                                        Spending Analytics
-                                    </p>
-                                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-stone-950">
-                                        Spending by Category
-                                    </h2>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <select
-                                        value={selectedMonth}
-                                        onChange={(event) =>
-                                            setSelectedMonth(Number(event.target.value))
-                                        }
-                                        className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700"
-                                    >
-                                        <option value={1}>January</option>
-                                        <option value={2}>February</option>
-                                        <option value={3}>March</option>
-                                        <option value={4}>April</option>
-                                        <option value={5}>May</option>
-                                        <option value={6}>June</option>
-                                        <option value={7}>July</option>
-                                        <option value={8}>August</option>
-                                        <option value={9}>September</option>
-                                        <option value={10}>October</option>
-                                        <option value={11}>November</option>
-                                        <option value={12}>December</option>
-                                    </select>
-
-                                    {expenseSummary && (
-                                        <p className="text-sm font-medium text-stone-500">
-                                            {formatMoney(expenseSummary.total_spent)} total
-                                        </p>
-                                    )}
-                                </div>
+                                <ExpenseTable
+                                    expenses={expenses}
+                                    error={expenseDeleteError}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
+                                />
                             </div>
+                        )}
 
-                            <div className="mt-6">
-                                {expenseSummary?.categories?.length > 0 ? (
-                                    <SpendingByCategoryChart
-                                        categories={expenseSummary.categories}
-                                    />
-                                ) : (
-                                    <div className="flex h-80 items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50 text-sm text-stone-500">
-                                        Add expenses to see category spending.
-                                    </div>
-                                )}
-                            </div>
-                        </section>
+                        {activeTab === "budget" && (
+                            <BudgetCard
+                                budget={budget}
+                                budgetAmount={budgetAmount}
+                                budgetUsedPercentage={budgetUsedPercentage}
+                                error={budgetError}
+                                onBudgetAmountChange={setBudgetAmount}
+                                onSubmit={handleBudgetSubmit}
+                            />
+                        )}
+
+                        {activeTab === "analytics" && (
+                            <AnalyticsCard
+                                expenseSummary={expenseSummary}
+                                monthlyTrend={monthlyTrend}
+                                monthlyTrendLoading={monthlyTrendLoading}
+                                monthlyTrendError={monthlyTrendError}
+                                selectedMonth={selectedMonth}
+                                selectedYear={selectedYear}
+                                onMonthChange={setSelectedMonth}
+                            />
+                        )}
+
+                        {activeTab === "insights" && (
+                            <AIInsightsCard
+                                insights={aiInsights}
+                                loading={aiInsightsLoading}
+                                error={aiInsightsError}
+                                onGenerate={handleGenerateInsights}
+                            />
+                        )}
                     </section>
-
-                    <div className="mt-6 grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-                        <ExpenseForm
-                            description={description}
-                            amount={amount}
-                            category={category}
-                            expenseDate={expenseDate}
-                            isEditing={Boolean(editingExpenseId)}
-                            onDescriptionChange={setDescription}
-                            onAmountChange={setAmount}
-                            onCategoryChange={setCategory}
-                            onExpenseDateChange={setExpenseDate}
-                            onSubmit={handleSubmit}
-                            onCancelEdit={resetForm}
-                        />
-
-                        <ExpenseTable
-                            expenses={expenses}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                        />
-                    </div>
                 </section>
             </div>
         </main>

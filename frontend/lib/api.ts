@@ -9,6 +9,47 @@ if (!API_BASE_URL) {
 
 export { API_BASE_URL };
 
+type FastApiValidationError = {
+    msg?: unknown;
+};
+
+async function parseApiError(
+    response: Response,
+    fallbackMessage: string
+): Promise<Error> {
+    try {
+        const data: unknown = await response.json();
+
+        if (
+            data &&
+            typeof data === "object" &&
+            "detail" in data
+        ) {
+            const detail = (data as { detail: unknown }).detail;
+
+            if (typeof detail === "string" && detail.trim()) {
+                return new Error(detail);
+            }
+
+            if (Array.isArray(detail)) {
+                const messages = detail
+                    .map((item: FastApiValidationError) =>
+                        typeof item?.msg === "string" ? item.msg : null
+                    )
+                    .filter(Boolean);
+
+                if (messages.length > 0) {
+                    return new Error(messages.join(" "));
+                }
+            }
+        }
+    } catch {
+        // Fall through to the safe generic message below.
+    }
+
+    return new Error(fallbackMessage);
+}
+
 
 export type CreateExpenseRequest = {
     description: string;
@@ -35,6 +76,16 @@ export type ExpenseSummary = {
     categories: CategorySpending[];
 };
 
+export type MonthlySpendingTrendMonth = {
+    month: number;
+    year: number;
+    total_spent: string;
+};
+
+export type MonthlySpendingTrendResponse = {
+    months: MonthlySpendingTrendMonth[];
+};
+
 export type BudgetSummary = {
     amount: string;
     spent: string;
@@ -44,6 +95,14 @@ export type BudgetSummary = {
 
 export type SetBudgetRequest = {
     amount: number;
+};
+
+export type AIInsightStatus = "under_budget" | "on_track" | "over_budget";
+
+export type AIInsightResponse = {
+    status: AIInsightStatus;
+    summary: string;
+    recommendations: string[];
 };
 
 export async function getCurrentUser() {
@@ -60,7 +119,7 @@ export async function getCurrentUser() {
     });
 
     if (!response.ok) {
-        throw new Error("Failed to fetch current user.");
+        throw await parseApiError(response, "Failed to fetch current user.");
     }
 
     return response.json();
@@ -80,7 +139,7 @@ export async function getExpenses(): Promise<Expense[]> {
     });
     
     if (!response.ok) {
-        throw new Error("Failed to fetch expenses.");
+        throw await parseApiError(response, "Failed to fetch expenses.");
     }
     
     return response.json();
@@ -105,7 +164,7 @@ export async function createExpense(
     });
 
     if (!response.ok) {
-        throw new Error("Failed to create expense.");
+        throw await parseApiError(response, "Failed to create expense.");
     }
 
     return response.json();
@@ -126,7 +185,7 @@ export async function deleteExpense(expenseId: string) {
     });
 
     if (!response.ok) {
-        throw new Error("Failed to delete expense.");
+        throw await parseApiError(response, "Failed to delete expense.");
     }
 }
 
@@ -150,7 +209,7 @@ export async function updateExpense(
     });
 
     if (!response.ok) {
-        throw new Error("Failed to update expense.");
+        throw await parseApiError(response, "Failed to update expense.");
     }
 
     return response.json();
@@ -174,7 +233,7 @@ export async function getCurrentBudget(): Promise<BudgetSummary | null> {
     }
 
     if (!response.ok) {
-        throw new Error("Failed to fetch current budget.");
+        throw await parseApiError(response, "Failed to fetch current budget.");
     }
 
     return response.json();
@@ -199,7 +258,7 @@ export async function setCurrentBudget(
     });
 
     if (!response.ok) {
-        throw new Error("Failed to save budget.");
+        throw await parseApiError(response, "Failed to save budget.");
     }
 
     return response.json();
@@ -237,7 +296,52 @@ export async function getExpenseSummary(
     );
 
     if (!response.ok) {
-        throw new Error("Failed to fetch expense summary.");
+        throw await parseApiError(response, "Failed to fetch expense summary.");
+    }
+
+    return response.json();
+}
+
+export async function getMonthlySpendingTrend(
+    months = 6
+): Promise<MonthlySpendingTrendResponse> {
+    const token = await getAccessToken();
+
+    if (!token) {
+        throw new Error("User is not authenticated.");
+    }
+
+    const response = await fetch(
+        `${API_BASE_URL}/expenses/monthly-trend?months=${months}`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw await parseApiError(response, "Failed to fetch monthly spending trend.");
+    }
+
+    return response.json();
+}
+
+export async function getAIInsights(): Promise<AIInsightResponse> {
+    const token = await getAccessToken();
+
+    if (!token) {
+        throw new Error("User is not authenticated.");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/insights/current/ai`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+
+    if (!response.ok) {
+        throw await parseApiError(response, "Failed to generate AI financial insights.");
     }
 
     return response.json();
