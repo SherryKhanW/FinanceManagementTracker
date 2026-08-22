@@ -3,6 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import HTTPException, status
+
 from app.budgets.repository import BudgetRepository
 from app.expenses.repository import ExpenseRepository
 from app.insights.schemas import (
@@ -130,7 +132,13 @@ class InsightService:
         snapshot = self.get_current_snapshot(
             user_id=user_id,
         )
-    
-        return self.ai_client.generate_financial_insights(
-            snapshot=snapshot,
-    )
+
+        try:
+            return self.ai_client.generate_financial_insights(
+                snapshot=snapshot,
+            )
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AI financial insights are temporarily unavailable.",
+            ) from error

@@ -103,8 +103,8 @@ def get_expense_summary(
             ExpenseService,
             Depends(get_expense_service),
         ],
-        month: int | None = None,
-        year: int | None = None,
+        month: Annotated[int | None, Query(ge=1, le=12)] = None,
+        year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
 ) -> ExpenseSummaryResponse:
     now = datetime.now()
     

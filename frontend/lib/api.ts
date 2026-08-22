@@ -17,6 +17,10 @@ async function parseApiError(
     response: Response,
     fallbackMessage: string
 ): Promise<Error> {
+    if (response.status >= 500) {
+        return new Error(fallbackMessage);
+    }
+
     try {
         const data: unknown = await response.json();
 

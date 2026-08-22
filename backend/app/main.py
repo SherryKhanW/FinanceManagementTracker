@@ -6,6 +6,7 @@ from app.expenses.router import router as expense_router
 from app.budgets.router import router as budgets_router
 from app.auth.dependencies import get_current_user
 from app.insights.router import router as insights_router
+from app.core.config import settings
 
 app = FastAPI(
     title="Finance Management Tracker API",
@@ -18,12 +19,10 @@ app.include_router(insights_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-    ],
+    allow_origins=settings.cors_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.get("/health")

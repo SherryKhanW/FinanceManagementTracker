@@ -1,11 +1,17 @@
 type HealthResponse = {
   status: string;
-  service: string;
+  service?: string;
 };
 
 async function getHealth(): Promise<HealthResponse | null> {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!apiBaseUrl) {
+    return null;
+  }
+
   try {
-    const response = await fetch("http://127.0.0.1:8000/health", {
+    const response = await fetch(`${apiBaseUrl}/health`, {
       cache: "no-store",
     });
 
