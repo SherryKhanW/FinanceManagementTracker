@@ -286,6 +286,23 @@ export default function DashboardPage() {
         }
     };
 
+    const refreshDashboardDataAfterMutation = async () => {
+        const results = await Promise.allSettled([
+            loadExpenses(),
+            loadBudget(),
+            loadExpenseSummary(),
+            loadMonthlySpendingTrend(),
+        ]);
+
+        const failedRefreshes = results.filter(
+            (result) => result.status === "rejected"
+        );
+
+        if (failedRefreshes.length > 0) {
+            console.error("Some dashboard data failed to refresh.", failedRefreshes);
+        }
+    };
+
     async function handleGenerateInsights() {
         setAiInsightsLoading(true);
         setAiInsightsError(null);
@@ -330,12 +347,9 @@ export default function DashboardPage() {
                 await createExpense(validation.data);
             }
 
-            await loadExpenses();
-            await loadBudget();
-            await loadExpenseSummary();
-            await loadMonthlySpendingTrend();
-            
             resetForm();
+            await refreshDashboardDataAfterMutation();
+            
         } catch (error) {
             console.error(error);
             setExpenseFormError(
@@ -398,10 +412,9 @@ export default function DashboardPage() {
 
         try {
             await deleteExpense(expenseId);
-            await loadExpenses();
-            await loadBudget();
-            await loadExpenseSummary();
-            await loadMonthlySpendingTrend();
+            
+            resetForm();
+            await refreshDashboardDataAfterMutation();
             
         } catch (error) {
             console.error(error);
@@ -417,9 +430,11 @@ export default function DashboardPage() {
                 const currentUser = await getCurrentUser();
                 setUser(currentUser);
 
-                await loadExpenses();
-                await loadBudget();
-                await loadMonthlySpendingTrend();
+                await Promise.all([
+                    loadExpenses(),
+                    loadBudget(),
+                    loadMonthlySpendingTrend(),
+                ]);
             } catch (error) {
                 console.error(error);
 
