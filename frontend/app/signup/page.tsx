@@ -37,9 +37,9 @@ export default function SignupPage() {
         <main className="flex min-h-screen items-center justify-center bg-[#f7f4ef] p-6 text-stone-950">
             <section className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-[0_24px_80px_rgba(31,27,22,0.09)]">
                 <div className="mb-8">
-                    <div className="flex size-11 items-center justify-center rounded-2xl bg-stone-950 text-sm font-semibold text-white">
-                        KP
-                    </div>
+                    <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-950">
+                        Kaisa Paisa?
+                    </h1>
                     <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-950">
                         Create account
                     </h1>
