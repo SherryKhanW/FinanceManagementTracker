@@ -10,6 +10,7 @@ class Settings:
         self.supabase_url = self._get_required_env("SUPABASE_URL")
         self.supabase_anon_key = self._get_required_env("SUPABASE_ANON_KEY")
         self.database_url = self._get_required_env("DATABASE_URL")
+        self.redis_url = self._get_required_env("REDIS_URL")
         self.cors_allowed_origins = self._get_csv_env(
             "CORS_ALLOWED_ORIGINS",
             ["http://localhost:3000"],
