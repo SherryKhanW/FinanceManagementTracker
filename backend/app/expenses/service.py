@@ -7,12 +7,23 @@ from dateutil.relativedelta import relativedelta
 from app.expenses.models import Expense
 from app.expenses.repository import ExpenseRepository
 from app.expenses.schemas import (ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseSummaryResponse, CategorySpendingResponse, MonthlySpendingPoint, MonthlySpendingTrendResponse)
+from app.core.redis import cache
 
 
 class ExpenseService:
     def __init__(self, repository: ExpenseRepository):
         self.repository = repository
 
+
+    def _invalidate_expense_summary(
+            self,
+            user_id: UUID,
+            month: int,
+            year: int,
+    ) -> None:
+        cache_key = f"expense_summary:{user_id}:{year}:{month}"
+        cache.delete(cache_key)
+    
     def create_expense(
             self,
             expense_data: ExpenseCreate,
@@ -23,7 +34,15 @@ class ExpenseService:
             user_id=user_id,
         )
 
-        return self.repository.create_expense(expense)
+        created_expense = self.repository.create_expense(expense)
+
+        self._invalidate_expense_summary(
+            user_id=user_id,
+            month=created_expense.expense_date.month,
+            year=created_expense.expense_date.year,
+        )
+        
+        return created_expense
 
     def get_expenses(
             self,
@@ -42,12 +61,15 @@ class ExpenseService:
             expense_id,
             user_id,
         )
-    
+
         if expense is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Expense not found.",
             )
+    
+        old_month = expense.expense_date.month
+        old_year = expense.expense_date.year
     
         updates = expense_data.model_dump(
             exclude_unset=True,
@@ -60,17 +82,31 @@ class ExpenseService:
                 field,
                 value,
             )
-            
-        return self.repository.update_expense(expense)
     
+        updated_expense = self.repository.update_expense(expense)
+    
+        self._invalidate_expense_summary(
+            user_id=user_id,
+            month=old_month,
+            year=old_year,
+        )
+    
+        self._invalidate_expense_summary(
+            user_id=user_id,
+            month=updated_expense.expense_date.month,
+            year=updated_expense.expense_date.year,
+        )
+    
+        return updated_expense
+
     def delete_expense(
             self,
-            expense_id = UUID,
-            user_id = UUID
+            expense_id: UUID,
+            user_id: UUID,
     ) -> None:
         expense = self.repository.get_expense(
-            expense_id = expense_id, 
-            user_id = user_id
+            expense_id=expense_id,
+            user_id=user_id,
         )
 
         if expense is None:
@@ -78,8 +114,17 @@ class ExpenseService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Expense not found",
             )
-        
+    
+        month = expense.expense_date.month
+        year = expense.expense_date.year
+    
         self.repository.delete_expense(expense)
+    
+        self._invalidate_expense_summary(
+            user_id=user_id,
+            month=month,
+            year=year,
+        )
 
     def get_expense_summary(
             self,
@@ -87,7 +132,14 @@ class ExpenseService:
             month: int,
             year: int,
     ) -> ExpenseSummaryResponse:
-
+        
+        cache_key = f"expense_summary:{user_id}:{year}:{month}"
+        
+        cached_summary = cache.get(cache_key)
+        
+        if cached_summary:
+            return ExpenseSummaryResponse.model_validate_json(cached_summary)
+        
         total_spent = self.repository.get_monthly_expense_total(
             user_id=user_id,
             month=month,
@@ -115,10 +167,18 @@ class ExpenseService:
                 )
             )
     
-        return ExpenseSummaryResponse(
+        response =  ExpenseSummaryResponse(
             total_spent=total_spent,
             categories=categories,
         )
+        
+        cache.setex(
+            cache_key,
+            60,
+            response.model_dump_json()
+        )
+        
+        return response
 
     def get_monthly_spending_trend(
             self,
