@@ -1,4 +1,4 @@
-Finance Management Tracker
+# Finance Management Tracker
 
 A full stack, AI powered personal finance platform for tracking expenses, managing budgets, analyzing spending, and generating personalized financial insights.
 
