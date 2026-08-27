@@ -1,6 +1,6 @@
-const moneyFormatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+const moneyFormatter = new Intl.NumberFormat("en-PK", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
 });
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -13,10 +13,10 @@ export function formatMoney(amount: string | number) {
     const value = Number(amount);
 
     if (Number.isNaN(value)) {
-        return moneyFormatter.format(0);
+        return `Rs ${moneyFormatter.format(0)}`;
     }
 
-    return moneyFormatter.format(value);
+    return `Rs ${moneyFormatter.format(value)}`;
 }
 
 export function formatDate(date: string) {

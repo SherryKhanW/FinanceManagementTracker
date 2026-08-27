@@ -11,6 +11,7 @@ import {
 } from "recharts";
 
 import type { CategorySpending } from "@/lib/api";
+import { formatMoney } from "@/lib/formatters";
 
 type SpendingByCategoryChartProps = {
     categories: CategorySpending[];
@@ -53,7 +54,7 @@ export default function SpendingByCategoryChart({
                             borderRadius: "12px",
                             boxShadow: "0 14px 40px rgba(23, 50, 77, 0.10)",
                         }}
-                        formatter={(value) => [`$${Number(value).toFixed(2)}`, "Amount"]}
+                        formatter={(value) => [formatMoney(Number(value)), "Amount"]}
                     />
 
                     <Bar
