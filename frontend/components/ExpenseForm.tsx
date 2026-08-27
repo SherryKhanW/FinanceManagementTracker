@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 
+import { ButtonSpinner } from "@/components/ButtonSpinner";
+
 export const EXPENSE_CATEGORIES = [
     "Food",
     "Transport",
@@ -16,6 +18,7 @@ type ExpenseFormProps = {
     category: string;
     expenseDate: string;
     isEditing: boolean;
+    isSubmitting: boolean;
     error: string | null;
     onDescriptionChange: (value: string) => void;
     onAmountChange: (value: string) => void;
@@ -34,6 +37,7 @@ export function ExpenseForm({
     category,
     expenseDate,
     isEditing,
+    isSubmitting,
     error,
     onDescriptionChange,
     onAmountChange,
@@ -119,16 +123,26 @@ export function ExpenseForm({
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row">
                     <button
                         type="submit"
-                        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                        disabled={isSubmitting}
+                        aria-busy={isSubmitting}
+                        className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {isEditing ? "Update expense" : "Create expense"}
+                        {isSubmitting && <ButtonSpinner />}
+                        {isSubmitting
+                            ? isEditing
+                                ? "Updating..."
+                                : "Creating..."
+                            : isEditing
+                                ? "Update expense"
+                                : "Create expense"}
                     </button>
 
                     {isEditing && (
                         <button
                             type="button"
                             onClick={onCancelEdit}
-                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#F5F7F6] px-5 py-3 text-sm font-semibold text-[#17324D] ring-1 ring-[#E2E8E5] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                            disabled={isSubmitting}
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#F5F7F6] px-5 py-3 text-sm font-semibold text-[#17324D] ring-1 ring-[#E2E8E5] transition hover:bg-[#E5F2EE] active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             Cancel
                         </button>

@@ -3,7 +3,21 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import { ButtonSpinner } from "@/components/ButtonSpinner";
 import { createClient } from "@/lib/supabase/client";
+
+const duplicateEmailMessage = "This email is already registered. Please log in instead.";
+
+function isDuplicateSignupError(message: string) {
+    const normalizedMessage = message.toLowerCase();
+
+    return (
+        normalizedMessage.includes("already registered") ||
+        normalizedMessage.includes("already exists") ||
+        normalizedMessage.includes("already been registered") ||
+        normalizedMessage.includes("user already")
+    );
+}
 
 export default function SignupPage() {
     const supabase = createClient();
@@ -19,13 +33,19 @@ export default function SignupPage() {
         setIsLoading(true);
         setMessage("");
 
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
         });
 
         if (error) {
-            setMessage(error.message);
+            setMessage(
+                isDuplicateSignupError(error.message)
+                    ? duplicateEmailMessage
+                    : error.message
+            );
+        } else if (data.user && data.user.identities?.length === 0) {
+            setMessage(duplicateEmailMessage);
         } else {
             setMessage("Account created. Check your email to confirm your account.");
         }
@@ -37,7 +57,8 @@ export default function SignupPage() {
         <main className="flex min-h-screen items-center justify-center bg-[#f7f4ef] p-6 text-stone-950">
             <section className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-[0_24px_80px_rgba(31,27,22,0.09)]">
                 <div className="mb-8">
-                    <h1 className="mt-6 text-4xl font-semibold tracking-tight text-stone-950">
+                    <h1 className="mt-6 text-4
+                    xl font-semibold tracking-tight text-stone-950">
                         Kaisa Paisa?
                     </h1>
                     <h1 className="mt-6 text-2xl font-semibold tracking-tight text-stone-950">
@@ -79,8 +100,10 @@ export default function SignupPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-busy={isLoading}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
+                        {isLoading && <ButtonSpinner />}
                         {isLoading ? "Creating account..." : "Sign up"}
                     </button>
                 </form>

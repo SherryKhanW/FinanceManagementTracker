@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 
+import { ButtonSpinner } from "@/components/ButtonSpinner";
 import type { BudgetSummary } from "@/lib/api";
 import { formatMoney } from "@/lib/formatters";
 
@@ -7,6 +8,7 @@ type BudgetCardProps = {
     budget: BudgetSummary | null;
     budgetAmount: string;
     budgetUsedPercentage: number;
+    isSubmitting: boolean;
     error: string | null;
     onBudgetAmountChange: (value: string) => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -16,6 +18,7 @@ export function BudgetCard({
     budget,
     budgetAmount,
     budgetUsedPercentage,
+    isSubmitting,
     error,
     onBudgetAmountChange,
     onSubmit,
@@ -98,9 +101,12 @@ export function BudgetCard({
 
                     <button
                         type="submit"
-                        className="mt-3 min-h-11 w-full rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                        disabled={isSubmitting}
+                        aria-busy={isSubmitting}
+                        className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {budget ? "Update budget" : "Set budget"}
+                        {isSubmitting && <ButtonSpinner />}
+                        {isSubmitting ? "Saving..." : budget ? "Update budget" : "Set budget"}
                     </button>
                 </form>
             </div>

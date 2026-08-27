@@ -1,9 +1,11 @@
+import { ButtonSpinner } from "@/components/ButtonSpinner";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import type { Expense } from "@/types/expense";
 
 type ExpenseTableProps = {
     expenses: Expense[];
     error: string | null;
+    deletingExpenseId: string | null;
     onEdit: (expense: Expense) => void;
     onDelete: (expenseId: string) => void;
 };
@@ -11,6 +13,7 @@ type ExpenseTableProps = {
 export function ExpenseTable({
     expenses,
     error,
+    deletingExpenseId,
     onEdit,
     onDelete,
 }: ExpenseTableProps) {
@@ -57,10 +60,7 @@ export function ExpenseTable({
                         </thead>
                         <tbody className="divide-y divide-[#E2E8E5]">
                             {expenses.map((expense) => (
-                                <tr
-                                    key={expense.id}
-                                    className="transition hover:bg-[#F5F7F6]"
-                                >
+                                <tr key={expense.id} className="transition hover:bg-[#F5F7F6]">
                                     <td className="px-5 py-4">
                                         <p className="font-medium text-[#1E2A32]">
                                             {expense.description}
@@ -82,16 +82,20 @@ export function ExpenseTable({
                                             <button
                                                 type="button"
                                                 onClick={() => onEdit(expense)}
-                                                className="min-h-9 rounded-xl bg-[#F5F7F6] px-3 py-2 text-xs font-semibold text-[#17324D] ring-1 ring-[#E2E8E5] transition hover:bg-[#E5F2EE] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE]"
+                                                disabled={Boolean(deletingExpenseId)}
+                                                className="min-h-9 rounded-xl bg-[#F5F7F6] px-3 py-2 text-xs font-semibold text-[#17324D] ring-1 ring-[#E2E8E5] transition hover:bg-[#E5F2EE] active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onDelete(expense.id)}
-                                                className="min-h-9 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#C65B5B] ring-1 ring-[#E2E8E5] transition hover:bg-[#FDF2F2] hover:ring-[#C65B5B]/30 focus:outline-none focus:ring-4 focus:ring-[#F8DADA]"
+                                                disabled={Boolean(deletingExpenseId)}
+                                                aria-busy={deletingExpenseId === expense.id}
+                                                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#C65B5B] ring-1 ring-[#E2E8E5] transition hover:bg-[#FDF2F2] hover:ring-[#C65B5B]/30 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#F8DADA] disabled:cursor-not-allowed disabled:opacity-60"
                                             >
-                                                Delete
+                                                {deletingExpenseId === expense.id && <ButtonSpinner />}
+                                                {deletingExpenseId === expense.id ? "Deleting..." : "Delete"}
                                             </button>
                                         </div>
                                     </td>

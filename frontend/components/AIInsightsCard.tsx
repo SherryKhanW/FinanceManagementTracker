@@ -1,3 +1,4 @@
+import { ButtonSpinner } from "@/components/ButtonSpinner";
 import type { AIInsightResponse, AIInsightStatus } from "@/lib/api";
 
 type AIInsightsCardProps = {
@@ -50,8 +51,9 @@ export function AIInsightsCard({
                     onClick={onGenerate}
                     disabled={loading}
                     aria-busy={loading}
-                    className="min-h-11 rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#10263A] active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#E5F2EE] disabled:cursor-not-allowed disabled:opacity-60"
                 >
+                    {loading && <ButtonSpinner />}
                     {loading ? "Generating..." : insights ? "Regenerate" : "Generate insights"}
                 </button>
             </div>

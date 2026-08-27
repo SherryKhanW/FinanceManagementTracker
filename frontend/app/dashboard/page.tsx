@@ -175,10 +175,13 @@ export default function DashboardPage() {
     const [expenseDate, setExpenseDate] = useState("");
     const [expenseFormError, setExpenseFormError] = useState<string | null>(null);
     const [expenseDeleteError, setExpenseDeleteError] = useState<string | null>(null);
+    const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+    const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
     const [budget, setBudget] = useState<BudgetSummary | null>(null);
     const [budgetAmount, setBudgetAmount] = useState("");
     const [budgetError, setBudgetError] = useState<string | null>(null);
+    const [budgetSubmitting, setBudgetSubmitting] = useState(false);
     const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
     const [monthlyTrend, setMonthlyTrend] = useState<MonthlySpendingTrendMonth[]>([]);
     const [monthlyTrendLoading, setMonthlyTrendLoading] = useState(false);
@@ -340,6 +343,8 @@ export default function DashboardPage() {
             return;
         }
 
+        setExpenseSubmitting(true);
+
         try {
             if (editingExpenseId) {
                 await updateExpense(editingExpenseId, validation.data);
@@ -355,6 +360,8 @@ export default function DashboardPage() {
             setExpenseFormError(
                 getErrorMessage(error, "Unable to save expense. Please try again.")
             );
+        } finally {
+            setExpenseSubmitting(false);
         }
     }
 
@@ -375,6 +382,8 @@ export default function DashboardPage() {
             return;
         }
 
+        setBudgetSubmitting(true);
+
         try {
             await setCurrentBudget({
                 amount: validation.amount,
@@ -386,6 +395,8 @@ export default function DashboardPage() {
             setBudgetError(
                 getErrorMessage(error, "Unable to save budget. Please try again.")
             );
+        } finally {
+            setBudgetSubmitting(false);
         }
     };
 
@@ -410,6 +421,8 @@ export default function DashboardPage() {
             return;
         }
 
+        setDeletingExpenseId(expenseId);
+
         try {
             await deleteExpense(expenseId);
             
@@ -421,6 +434,8 @@ export default function DashboardPage() {
             setExpenseDeleteError(
                 getErrorMessage(error, "Unable to delete expense. Please try again.")
             );
+        } finally {
+            setDeletingExpenseId(null);
         }
     }
 
@@ -870,6 +885,7 @@ export default function DashboardPage() {
                                     category={category}
                                     expenseDate={expenseDate}
                                     isEditing={Boolean(editingExpenseId)}
+                                    isSubmitting={expenseSubmitting}
                                     error={expenseFormError}
                                     onDescriptionChange={setDescription}
                                     onAmountChange={setAmount}
@@ -882,6 +898,7 @@ export default function DashboardPage() {
                                 <ExpenseTable
                                     expenses={expenses}
                                     error={expenseDeleteError}
+                                    deletingExpenseId={deletingExpenseId}
                                     onEdit={handleEdit}
                                     onDelete={handleDelete}
                                 />
@@ -893,6 +910,7 @@ export default function DashboardPage() {
                                 budget={budget}
                                 budgetAmount={budgetAmount}
                                 budgetUsedPercentage={budgetUsedPercentage}
+                                isSubmitting={budgetSubmitting}
                                 error={budgetError}
                                 onBudgetAmountChange={setBudgetAmount}
                                 onSubmit={handleBudgetSubmit}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ButtonSpinner } from "@/components/ButtonSpinner";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -78,8 +79,10 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-busy={isLoading}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-stone-800 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
+                        {isLoading && <ButtonSpinner />}
                         {isLoading ? "Logging in..." : "Log in"}
                     </button>
                 </form>
